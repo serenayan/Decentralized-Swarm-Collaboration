@@ -41,8 +41,8 @@ class Simulator:
         for drone in self.drones:
             drone.move()
             pos = drone.position
-            if pos in self.scenario_map:
-                drone.add_to_current_perception_context([(drone.id, SCENARIO_DICT[self.scenario_map[pos]])])
+            if (pos.x, pos.y) in self.scenario_map:
+                drone.add_to_current_perception_context([(drone.id, SCENARIO_DICT[self.scenario_map[(pos.x, pos.y)]])])
 
         for drone in self.drones:
             broad_cast_lst = []
