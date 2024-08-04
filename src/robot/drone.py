@@ -44,28 +44,31 @@ class Message:
     def data(self, data):
         self._data = data
 
+    def empty(self):
+        return len(self.data.keys()) == 0
+
     def clear(self):
-        self._data.clear()
+        self.data.clear()
 
     def copy(self, other):
         """Replace the data with other data"""
-        self._data = other.data.copy()
+        self.data = other.data.copy()
 
     def update(self, other):
         """Update the data with other data"""
-        for id, state in other.items():
-            self._data[id] = state
+        for id, state in other.data.items():
+            self.data[id] = state
 
     def add_state(self, id: DroneID, state: State):
         assert id == state.id
-        self._data[id] = state
+        self.data[id] = state
 
     def get_state(self, id: DroneID):
-        return self._data[id]
+        return self.data[id]
 
     def get_prompt(self):
         prompt = ""
-        if not self.data.empty():
+        if self.data:
             prompt = "Currently, our drone knows some information from its peers. "
             for id, state in self.data.items():
                 prompt += f"peer {id} has observed that {state.perception_context}."
@@ -163,8 +166,8 @@ class Drone():
         self._map = GridMap(map_dimensions, region_dimensions)
         self._next_moves = []
         self._dwell_time = 0
-        self._historical_data: Message
-        self._current_data : Message
+        self._historical_data: Message = Message()
+        self._current_data: Message = Message()
         print(f"Initializing drone {self._id} at position {self._position.x, self._position.y}")
 
     @property
@@ -174,17 +177,27 @@ class Drone():
     
     @property
     def position(self) -> Position:
-        """Get the position for this drone."""
+        """Position for this drone."""
         return self._position
+
+    @property
+    def map(self) -> Position:
+        """Map for this drone."""
+        return self._map
+
+    @property
+    def historical_data(self) -> Message:
+        """Historical data for this drone."""
+        return self._historical_data
+
+    @property
+    def current_data(self) -> Message:
+        """Current data for this drone."""
+        return self._current_data
 
     def move(self) -> None:
         """Move to the next position"""
         self.move_randomly()
-
-    @property
-    def map(self) -> Position:
-        """Get the map for this drone."""
-        return self._map
 
     def update(self) -> None:
         """
@@ -192,22 +205,22 @@ class Drone():
         If curent_data, call LLM, delete current_data
         Set historical_data
         """
-        if self._current_data:
-            self._historical_data.copy(self._current_data)
-            self._current_data.clear()
+        if not self.current_data.empty():
+            self.historical_data.copy(self.current_data)
+            self.current_data.clear()
 
     def can_communicate(self, other, threshold=3) -> bool:
         return (abs(self.position.x - other.position.x) < threshold) and (abs(self.position.y - other.position.y) < threshold)
     
     def set_neighbors(self, others) -> None:
         """Broadcasts this Drone's state to all the neighboring drones so that we synchronize state."""
-        if self._current_data:
+        if self.current_data:
             for other in others:
-                other.update_current_data(self._current_data)
+                other.update_current_data(self.current_data)
 
     def update_current_data(self, message: Message):
         """Update this drone's current data with data from other drones."""
-        self._current_data.update(message)
+        self.current_data.update(message)
 
     def move_randomly(self):
         # Get current position

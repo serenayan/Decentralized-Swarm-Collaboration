@@ -3,6 +3,8 @@ from matplotlib import text
 import numpy as np
 import random
 from robot.drone import Drone
+from robot.drone import Message
+from robot.drone import State
 from scenario import SCENARIO_DICT
 
 class Simulator:
@@ -36,8 +38,8 @@ class Simulator:
     def annotate_historical_context(self, ax):
         # display historical context
         for i, drone in enumerate(self.drones):
-            label = ax.text(drone.position.x + 0.1, drone.position.y + 0.1, drone._historical_perception_context, fontsize=8, ha='left', va='bottom')
-            label2 = ax.text(drone.position.x + 0.1, drone.position.y + 0.4, drone._current_perception_context, fontsize=8, ha='left', va='bottom')
+            label = ax.text(drone.position.x + 0.1, drone.position.y + 0.1, drone.historical_data.get_prompt(), fontsize=8, ha='left', va='bottom')
+            label2 = ax.text(drone.position.x + 0.1, drone.position.y + 0.4, drone.current_data.get_prompt(), fontsize=8, ha='left', va='bottom')
             self.context_labels.append(label)
             self.context_labels.append(label2)
 
@@ -58,7 +60,11 @@ class Simulator:
             drone.move()
             pos = drone.position
             if (pos.x, pos.y) in self.scenario_map:
-                drone.add_to_current_perception_context([(drone.id, SCENARIO_DICT[self.scenario_map[(pos.x, pos.y)]])])
+                # In real life, the drone's perception stack derives a message from the scenario. We are mocking this here.
+                state = State(drone.id, pos, SCENARIO_DICT[self.scenario_map[(pos.x, pos.y)]], "")
+                message = Message()
+                message.data = {drone.id: state}
+                drone.update_current_data(message)
 
         for drone in self.drones:
             broad_cast_lst = []
