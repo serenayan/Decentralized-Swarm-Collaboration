@@ -163,8 +163,8 @@ class Drone():
         Set historical_perception_context
         """
         if self._current_perception_context:
-          self._current_perception_context = set()
-          self._historical_perception_context = "updated history" + str(time.time())
+            self._current_perception_context = set()
+            self._historical_perception_context = "updated history" + str(time.time())
 
     def can_communicate(self, other, threshold=3) -> bool:
         return (abs(self.position.x - other.position.x) < threshold) and (abs(self.position.y - other.position.y) < threshold)

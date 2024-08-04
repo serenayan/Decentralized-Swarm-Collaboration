@@ -19,6 +19,7 @@ class Simulator:
             print(drone.position)
 
         self.arrows = []
+        self.context_labels = []
 
     def clear_arrows(self, ax):
         for arrow in self.arrows:
@@ -31,9 +32,24 @@ class Simulator:
             x, y = pos
             ax.text(x + 0.1, y + 0.1, abbr, fontsize=8, ha='left', va='bottom', color='red')
             ax.scatter(x, y, c='red', s=100, edgecolor='black', zorder=5)
+
+    def annotate_historical_context(self, ax):
+        # display historical context
+        for i, drone in enumerate(self.drones):
+            label = ax.text(drone.position.x + 0.1, drone.position.y + 0.1, drone._historical_perception_context, fontsize=8, ha='left', va='bottom')
+            label2 = ax.text(drone.position.x + 0.1, drone.position.y + 0.4, drone._current_perception_context, fontsize=8, ha='left', va='bottom')
+            self.context_labels.append(label)
+            self.context_labels.append(label2)
+
+    def clear_context(self, ax):
+        for label in self.context_labels:
+            label.remove()
+        self.context_labels = []
+        plt.draw()
     
     def tick(self, ax, texts):
         self.clear_arrows(ax)
+        self.clear_context(ax)
         
         # Draw scenario labels
         self.draw_scenario_labels(ax)
@@ -65,8 +81,10 @@ class Simulator:
 
         # Update texts for each drone's historical context
         for i, drone in enumerate(self.drones):
-            texts[i].set_text(f'Drone {drone.id}\n{drone._historical_perception_context}')
+            texts[i].set_text(f'Drone {drone.id}')
             texts[i].set_position((drone.position.x, drone.position.y))
+
+        self.annotate_historical_context(ax)
 
     def get_all_positions(self):
         return [drone.position for drone in self.drones]
