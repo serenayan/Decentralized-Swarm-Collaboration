@@ -2,15 +2,68 @@ import math
 import numpy as np
 from typing import List
 import random
+from collections import namedtuple
+import dataclasses
+import json
 import time
 
+type DroneID = int
+type PerceptionContext = str
+type InferenceResult = str
+
+class EnhancedJSONEncoder(json.JSONEncoder):
+    def default(self, o):
+        if dataclasses.is_dataclass(o):
+            return dataclasses.asdict(o)
+        return super().default(o)
+
+@dataclasses.dataclass
 class Position:
-    def __init__(self, x, y):
-         self.x = x
-         self.y = y
-    
+    x: int
+    y: int
+
     def __str__(self):
         return f"({self.x}, {self.y})"
+
+@dataclasses.dataclass
+class State:
+    id: DroneID
+    position: Position
+    perception_context: PerceptionContext
+    inference_result: InferenceResult
+
+class Message:
+    def __init__(self):
+        self._data : dict[DroneID, State] = {}
+
+    @property
+    def data(self):
+        return self._data
+
+    @data.setter
+    def data(self, data):
+        self._data = data
+
+    def add_state(self, id: DroneID, state: State):
+        assert id == state.id
+        self._data[id] = state
+
+    def get_state(self, id: DroneID):
+        return self._data[id]
+        
+    @classmethod
+    def serialize_to_string(cls, message) -> str:
+        """Serializes the message to a json string."""
+        return json.dumps(message.data, cls=EnhancedJSONEncoder)
+
+    @classmethod
+    def deserialize_from_string(cls, serialized_message: str):
+        """Load a serialized message into a Message instance"""
+        message = cls()
+        # TODO: make this exception-safe
+        message.data = json.loads(serialized_message)
+        return message
+
 
 class GridMap:
     def __init__(self, map_dimensions: tuple[int], region_dimensions: tuple[int]):
@@ -69,7 +122,7 @@ class GridMap:
         return score
 
 class Drone():
-    def __init__(self, id: int, map_dimensions: tuple[int], region_dimensions: tuple[int]):
+    def __init__(self, id: DroneID, map_dimensions: tuple[int], region_dimensions: tuple[int]):
         # Sanitization
         assert map_dimensions[0] > 0 and map_dimensions[1] > 0
         assert region_dimensions[0] > 0 and region_dimensions[1] > 0
