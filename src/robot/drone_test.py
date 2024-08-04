@@ -2,19 +2,19 @@ from drone import *
 
 def test_grid_map():
     map = GridMap((9,9), (3,3))
-    assert map.get_region(1,1) == (1,1)
-    assert map.get_region(3,3) == (1,1)
-    assert map.get_region(4,4) == (2,2)
-    assert map.get_region(5,8) == (3,2)
+    assert map.get_region(Position(1,1)) == (1,1)
+    assert map.get_region(Position(3,3)) == (1,1)
+    assert map.get_region(Position(4,4)) == (2,2)
+    assert map.get_region(Position(5,8)) == (3,2)
+
+    position = Position(1,3)
+    map.visit_cell(position)
+    region = map.get_region(position)
+    assert (map.region_exploration_score(*region) == 1)
+    map.print()
 
 def test_drone_visit_cells():
-    drone = Drone(1, (9,9), (3,3))
-    drone.map.visit_cell(1,3)
-    region = drone.map.get_region(1,3)
-    print(region)
-    print(drone.map.region_exploration_score(*region))
-    assert (drone.map.region_exploration_score(*region) == 1)
-    drone.map.print()
+    Drone(1, (9,9), (3,3))
 
 def test_message():
     state1 = State(1, Position(1,1), "Perception Context", "Inference Result")

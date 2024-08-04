@@ -44,12 +44,34 @@ class Message:
     def data(self, data):
         self._data = data
 
+    def clear(self):
+        self._data.clear()
+
+    def copy(self, other):
+        """Replace the data with other data"""
+        self._data = other.data.copy()
+
+    def update(self, other):
+        """Update the data with other data"""
+        for id, state in other.items():
+            self._data[id] = state
+
     def add_state(self, id: DroneID, state: State):
         assert id == state.id
         self._data[id] = state
 
     def get_state(self, id: DroneID):
         return self._data[id]
+
+    def get_prompt(self):
+        prompt = ""
+        if not self.data.empty():
+            prompt = "Currently, our drone knows some information from its peers. "
+            for id, state in self.data.items():
+                prompt += f"peer {id} has observed that {state.perception_context}."
+                if state.inference_result:
+                    prompt += f"peer {id} has planned the following response: {state.inference_result}"
+        return prompt
         
     @classmethod
     def serialize_to_string(cls, message) -> str:
@@ -69,7 +91,7 @@ class GridMap:
     def __init__(self, map_dimensions: tuple[int], region_dimensions: tuple[int]):
         assert len(map_dimensions) == 2, "Need to specify 2 dimensions."
         assert region_dimensions[0] < map_dimensions[0] and region_dimensions[1] < map_dimensions[1]
-        self._dimensions = map_dimensions
+        self._map_dimensions = map_dimensions
         self._region_dimensions = region_dimensions
         self._map = np.zeros((9,9),dtype=int)
     
@@ -104,21 +126,29 @@ class GridMap:
         # Print final row separator at bottom after loops finish
         print(row_sep)
 
-    def get_region(self, j: int, i: int) -> tuple[int]:
-        """ Gets the region index. """
-        return (math.ceil(i / self._region_dimensions[0]), math.ceil(j / self._region_dimensions[1]))
+    @property
+    def map_dimensions(self):
+        return self._map_dimensions
 
-    def visit_cell(self, j : int, i: int):
+    @property
+    def region_dimensions(self):
+        return self._region_dimensions
+
+    def get_region(self, position: Position) -> tuple[int]:
+        """ Gets the region index of a position. """
+        return (math.ceil(position.y / self._region_dimensions[0]), math.ceil(position.x / self._region_dimensions[1]))
+
+    def visit_cell(self, position: Position):
         """ Increment the counter for the cell. """
-        self._map[i][j] += 1
+        self._map[position.y][position.x] += 1
 
     def region_exploration_score(self, region_j, region_i):
         """ How many times we have visited cells in a region """
         # Probably more efficient to represent a 2d array of regions, and a region is a datastructure containing a 2d array of cells.
         score = 0
-        for i, j in np.ndindex(self._map.shape):
-            if self.get_region(i,j) == (region_i, region_j):
-                score += self._map[i][j]
+        for y, x in np.ndindex(self._map.shape):
+            if self.get_region(Position(x,y)) == (region_i, region_j):
+                score += self._map[y][x]
         return score
 
 class Drone():
@@ -133,8 +163,8 @@ class Drone():
         self._map = GridMap(map_dimensions, region_dimensions)
         self._next_moves = []
         self._dwell_time = 0
-        self._historical_perception_context = ""
-        self._current_perception_context = set() # Use set to easy dedup
+        self._historical_data: Message
+        self._current_data : Message
         print(f"Initializing drone {self._id} at position {self._position.x, self._position.y}")
 
     @property
@@ -159,22 +189,25 @@ class Drone():
     def update(self) -> None:
         """
         Plans the next moves
-        If current_perception_context, call LLM, delete current_perception_context
-        Set historical_perception_context
+        If curent_data, call LLM, delete current_data
+        Set historical_data
         """
-        if self._current_perception_context:
-          self._current_perception_context = set()
-          self._current_perception_context = "updated history" + str(time.time())
+        if self._current_data:
+            self._historical_data.copy(self._current_data)
+            self._current_data.clear()
 
     def can_communicate(self, other, threshold=3) -> bool:
         return (abs(self.position.x - other.position.x) < threshold) and (abs(self.position.y - other.position.y) < threshold)
     
     def set_neighbors(self, others) -> None:
-        for other in others:
-            other.add_to_current_perception_context(self._current_perception_context)
+        """Broadcasts this Drone's state to all the neighboring drones so that we synchronize state."""
+        if self._current_data:
+            for other in others:
+                other.update_current_data(self._current_data)
 
-    def add_to_current_perception_context(self, perception_context: List[tuple]):
-        self._current_perception_context.update(perception_context)
+    def update_current_data(self, message: Message):
+        """Update this drone's current data with data from other drones."""
+        self._current_data.update(message)
 
     def move_randomly(self):
         # Get current position
@@ -204,6 +237,17 @@ class Drone():
             self._position.x -= 1
         elif direction == 'right':
             self._position.x += 1
+
+    # def get_next_region_prompt(self) -> str:
+        # prompt = "If all else is equal, we prefer to move toward the region with the least exploration. Here are the options. "
+        # current_region = self.map.get_region(self.position)
+        # for (region_j, region_i) in self.map:
+        #     if self.map.region_is_possible(self.position):
+        #         current_region = 
+        #         prompt += f"Move up  "
+
+        
+
 
     def __str__(self):
         return f"Drone(id={self.id}, position={self.position})"
