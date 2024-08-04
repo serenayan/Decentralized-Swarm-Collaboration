@@ -34,9 +34,10 @@ def on_key_press(event, simulator, scatter, texts):
         update(simulator, scatter, texts)
 
 def main():
-    n = 9  # Map size (9x9 grid)
-    d = 4  # Number of drones
-    simulator = Simulator(map_size=n, num_drones=d)
+    map_dimensions = (9,9)  # Map size (9x9 grid)
+    region_dimensions = (3,3)  # Region (3x3 grid)
+    num_drones = 4  # Number of drones
+    simulator = Simulator(map_size=map_dimensions, region_dimensions=region_dimensions, num_drones=num_drones)
 
     fig, ax = plt.subplots()
     ax.set_xlim(-0.5, n-0.5)

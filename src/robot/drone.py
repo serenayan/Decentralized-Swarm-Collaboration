@@ -12,12 +12,12 @@ class Position:
         return f"({self.x}, {self.y})"
 
 class GridMap:
-    def __init__(self, dimensions: tuple[int], region_dimensions: tuple[int]):
-        assert len(dimensions) == 2, "Need to specify 2 dimensions."
-        assert region_dimensions[0] < dimensions[0] and region_dimensions[1] < dimensions[1]
-        self._dimensions = dimensions
+    def __init__(self, map_dimensions: tuple[int], region_dimensions: tuple[int]):
+        assert len(map_dimensions) == 2, "Need to specify 2 dimensions."
+        assert region_dimensions[0] < map_dimensions[0] and region_dimensions[1] < map_dimensions[1]
+        self._dimensions = map_dimensions
         self._region_dimensions = region_dimensions
-        self._grid = np.zeros((9,9),dtype=int)
+        self._map = np.zeros((9,9),dtype=int)
     
     def print(self):
         """
@@ -25,11 +25,11 @@ class GridMap:
         """
         
         # Some basic checks
-        assert self._grid.shape == (9, 9)
-        assert type(self._grid) == np.ndarray
+        assert self._map.shape == (9, 9)
+        assert type(self._map) == np.ndarray
         
         # Convert array elements to strings
-        board_str = self._grid.astype(str)
+        board_str = self._map.astype(str)
         
         # Our row separator
         row_sep = '-'*25
@@ -50,28 +50,53 @@ class GridMap:
         # Print final row separator at bottom after loops finish
         print(row_sep)
 
-    def get_region(self, i: int, j: int) -> tuple[int]:
+    def get_region(self, j: int, i: int) -> tuple[int]:
+        """ Gets the region index. """
         return (math.ceil(i / self._region_dimensions[0]), math.ceil(j / self._region_dimensions[1]))
 
+    def visit_cell(self, j : int, i: int):
+        """ Increment the counter for the cell. """
+        self._map[i][j] += 1
+
+    def region_exploration_score(self, region_j, region_i):
+        """ How many times we have visited cells in a region """
+        # Probably more efficient to represent a 2d array of regions, and a region is a datastructure containing a 2d array of cells.
+        score = 0
+        for i, j in np.ndindex(self._map.shape):
+            if self.get_region(i,j) == (region_i, region_j):
+                score += self._map[i][j]
+        return score
+
 class Drone():
-    def __init__(self, id: int, map_size: int):
+    def __init__(self, id: int, map_dimensions: tuple[int], region_dimensions: tuple[int]):
+        # Sanitization
+        assert map_dimensions[0] > 0 and map_dimensions[1] > 0
+        assert region_dimensions[0] > 0 and region_dimensions[1] > 0
+        # Initialize
         self._id = id
-        self._position = Position(random.randint(0, map_size - 1), random.randint(0, map_size - 1))
-        self._map_size = map_size
-        self._map = GridMap((map_size,map_size), (3,3))
+        self._position = Position(random.randint(0, map_dimensions[0] - 1), random.randint(0, region_dimensions[1] - 1))
+        self._map_dimensions = map_dimensions
+        self._map = GridMap(map_dimensions, region_dimensions)
         self._next_moves = []
         self._dwell_time = 0
         self._historical_perception_context = ""
         self._current_perception_context = []
         print(f"Initializing drone {self._id} at position {self._position.x, self._position.y}")
 
-    def get_id(self) -> int:
+    @property
+    def id(self) -> int:
         """Get the unique identifier for this drone."""
         return self._id
     
-    def get_position(self) -> Position:
+    @property
+    def position(self) -> Position:
         """Get the position for this drone."""
         return self._position
+
+    @property
+    def map(self) -> Position:
+        """Get the map for this drone."""
+        return self._map
 
     def update(self) -> None:
         """Plans the next moves"""
@@ -87,25 +112,21 @@ class Drone():
         return
 
     def move_randomly(self):
+        # TODO: account for edge cases and knowledge of previously explored regions.
         direction = random.choice(['up', 'down', 'left', 'right'])
         
         if direction == 'up':
-            self._position.y = (self._position.y + 1) % self._map_size
+            self._position.y = (self._position.y + 1) % self._map_dimensions[1]
         elif direction == 'down':
-            self._position.y = (self._position.y - 1) % self._map_size
+            self._position.y = (self._position.y - 1) % self._map_dimensions[1]
         elif direction == 'left':
-            self._position.x = (self._position.x - 1) % self._map_size
+            self._position.x = (self._position.x - 1) % self._map_dimensions[0]
         elif direction == 'right':
-            self._position.x = (self._position.x + 1) % self._map_size
+            self._position.x = (self._position.x + 1) % self._map_dimensions[0]
 
     def __str__(self):
         return f"Drone(id={self.id}, position={self.position})"
 
 
 if __name__ == "__main__":
-    map = GridMap((9,9), (3,3))
-    map.print()
-    print(map.get_region(1,1))
-    print(map.get_region(3,3))
-    print(map.get_region(4,4))
-    print("hello world")
+    drone = Drone(1, (9,9), (3,3))
