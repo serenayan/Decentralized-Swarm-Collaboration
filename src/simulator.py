@@ -38,8 +38,8 @@ class Simulator:
     def annotate_historical_context(self, ax):
         # display historical context
         for i, drone in enumerate(self.drones):
-            label = ax.text(drone.position.x + 0.1, drone.position.y + 0.1, drone.historical_data.get_prompt(), fontsize=8, ha='left', va='bottom')
-            label2 = ax.text(drone.position.x + 0.1, drone.position.y + 0.4, drone.current_data.get_prompt(), fontsize=8, ha='left', va='bottom')
+            label = ax.text(drone.position.x + 0.1, drone.position.y + 0.1, drone.historical_data.get_prompt(drone.id), fontsize=8, ha='left', va='bottom')
+            label2 = ax.text(drone.position.x + 0.1, drone.position.y + 0.4, drone.current_data.get_prompt(drone.id), fontsize=8, ha='left', va='bottom')
             self.context_labels.append(label)
             self.context_labels.append(label2)
 

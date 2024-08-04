@@ -26,7 +26,12 @@ def test_message():
     serialized_deserialized_serialized_message = Message.serialize_to_string(Message.deserialize_from_string(Message.serialize_to_string(message)))
     assert serialized_message == serialized_deserialized_serialized_message
 
+def test_planner():
+    event = Planner.execute_prompt("How many days are in a year?")
+    print(str(event))
+
 if __name__ == "__main__":
     test_grid_map()
     test_drone_visit_cells()
     test_message()
+    test_planner()

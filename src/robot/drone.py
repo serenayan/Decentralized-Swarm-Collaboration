@@ -1,11 +1,26 @@
 import math
 import numpy as np
-from typing import List
 import random
-from collections import namedtuple
 import dataclasses
 import json
-import time
+# from planner import Planner
+from typing import List
+import replicate
+
+class Planner:
+    @staticmethod
+    def execute_prompt(prompt: str) -> str:
+        input = {
+            "prompt": prompt,
+            "max_tokens": 1024
+        }
+        result = ""
+        for event in replicate.stream(
+            "meta/meta-llama-3.1-405b-instruct",
+            input=input
+        ):
+            result += str(event)
+        return result
 
 type DroneID = int
 type PerceptionContext = str
@@ -66,10 +81,12 @@ class Message:
     def get_state(self, id: DroneID):
         return self.data[id]
 
-    def get_prompt(self):
+    def get_prompt(self, id: DroneID):
         prompt = ""
+        if id in self.data.keys():
+             prompt += f"Our drone has observed that {self.data[id].perception_context}"
         if self.data:
-            prompt = "Currently, our drone knows some information from its peers. "
+            prompt = "Our drone knows some information from its peers. "
             for id, state in self.data.items():
                 prompt += f"peer {id} has observed that {state.perception_context}."
                 if state.inference_result:
@@ -154,6 +171,14 @@ class GridMap:
                 score += self._map[y][x]
         return score
 
+    def get_position_of_least_visited_cell_in_region(self, region: tuple[int]) -> Position:
+        position = None
+        least_visitation = 1000
+        for y, x in np.ndindex(self._map.shape):
+            if self.get_region(Position(x,y)) == region and self._map[y][x] < least_visitation:
+                position = Position(x,y)
+        return position
+
 class Drone():
     def __init__(self, id: DroneID, map_dimensions: tuple[int], region_dimensions: tuple[int]):
         # Sanitization
@@ -163,8 +188,9 @@ class Drone():
         self._id = id
         self._position = Position(random.randint(0, map_dimensions[0] - 1), random.randint(0, region_dimensions[1] - 1))
         self._map_dimensions = map_dimensions
+        self._region_dimensions = region_dimensions
         self._map = GridMap(map_dimensions, region_dimensions)
-        self._next_moves = []
+        self._planned_moves: List[Position] = [] # A list of destinations
         self._dwell_time = 0
         self._historical_data: Message = Message()
         self._current_data: Message = Message()
@@ -197,17 +223,43 @@ class Drone():
 
     def move(self) -> None:
         """Move to the next position"""
+        # Use planned moves if they exist.
+        planned_moves_count = len(self._planned_moves)
+        if planned_moves_count > 0:
+            next_target_position = self._planned_moves[0]
+            self.move_toward_target(next_target_position)
+            if self.position == next_target_position:
+                del self._planned_moves[0]
+                assert len(self._planned_moves) < planned_moves_count
+
+        # Otherwise, move randomly.
         self.move_randomly()
+        self._map.visit_cell(self.position)
 
     def update(self) -> None:
         """
         Plans the next moves
-        If curent_data, call LLM, delete current_data
+        If current_data, call LLM, delete current_data
         Set historical_data
         """
         if not self.current_data.empty():
+            if self.id in self.current_data.data.keys():
+                state = self.current_data.data[self.id]
+                prompt = f"Our drone is on a {self._map_dimensions} by {self._map_dimensions} grid of cells. The map is also divided into a {self._region_dimensions} by {self._region_dimensions} grid of regions. Each cell is contained in a region."
+                prompt += "If all else is equal, we prefer to move toward the region with the least exploration. "
+                prompt += "Historically, old information is that "
+                prompt += self.historical_data.get_prompt(self.id)
+                prompt += "Currently, more recent information is available."
+                prompt += self.current_data.get_prompt(self.id)
+                prompt += " Given this information, should the drone move to the region up, down, left, or right?"
+                state.inference_result = Planner.execute_prompt(prompt)
+                target_position = self.get_target_position_from_interfence_result(state.inference_result)
+                if target_position is not None:
+                    # TODO: Currently, we only support a single target position in the planned moves.
+                    self._planned_moves = [target_position]
             self.historical_data.copy(self.current_data)
             self.current_data.clear()
+            assert not self.historical_data.empty()
 
     def can_communicate(self, other, threshold=3) -> bool:
         return (abs(self.position.x - other.position.x) < threshold) and (abs(self.position.y - other.position.y) < threshold)
@@ -251,16 +303,33 @@ class Drone():
         elif direction == 'right':
             self._position.x += 1
 
-    # def get_next_region_prompt(self) -> str:
-        # prompt = "If all else is equal, we prefer to move toward the region with the least exploration. Here are the options. "
-        # current_region = self.map.get_region(self.position)
-        # for (region_j, region_i) in self.map:
-        #     if self.map.region_is_possible(self.position):
-        #         current_region = 
-        #         prompt += f"Move up  "
+    def move_toward_target(self, target: Position):
+        # Newton's method, simple shortest path.
+        grad_x = target.x - self._position.x
+        grad_y = target.y - self._position.y
+        if grad_x > grad_y:
+            self._position.x += int(grad_x/abs(grad_x))
+        else:
+            self._position.y += int(grad_y/abs(grad_y))
 
-        
+    def get_target_position_from_interfence_result(self, inference_result: InferenceResult) -> Position | None:
+        target_position = None
+        current_region = self.map.get_region(self.position)
+        target_region = current_region
+        if "up" in inference_result or "Up" in inference_result:
+            target_region = (current_region[0]+1, current_region[1])
+            target_position = self.map.get_position_of_least_visited_cell_in_region(target_region)
+        elif "down" in inference_result or "Down" in inference_result:
+            target_region = (current_region[0]-1, current_region[1])
+            target_position = self.map.get_position_of_least_visited_cell_in_region(target_region)
+        if "right" in inference_result or "Right" in inference_result:
+            target_region = (current_region[0], current_region[1]+1)
+            target_position = self.map.get_position_of_least_visited_cell_in_region(target_region)
+        elif "left" in inference_result or "Left" in inference_result:
+            target_region = (current_region[0], current_region[1]-1)
+            target_position = self.map.get_position_of_least_visited_cell_in_region(target_region)
 
+        return target_position
 
     def __str__(self):
         return f"Drone(id={self.id}, position={self.position})"
