@@ -2,6 +2,7 @@ import math
 import numpy as np
 from typing import List
 import random
+import time
 
 class Position:
     def __init__(self, x, y):
@@ -80,7 +81,7 @@ class Drone():
         self._next_moves = []
         self._dwell_time = 0
         self._historical_perception_context = ""
-        self._current_perception_context = []
+        self._current_perception_context = set() # Use set to easy dedup
         print(f"Initializing drone {self._id} at position {self._position.x, self._position.y}")
 
     @property
@@ -95,6 +96,8 @@ class Drone():
 
     def move(self) -> None:
         """Move to the next position"""
+        self.move_randomly()
+
     @property
     def map(self) -> Position:
         """Get the map for this drone."""
@@ -106,29 +109,48 @@ class Drone():
         If current_perception_context, call LLM, delete current_perception_context
         Set historical_perception_context
         """
-        return
+        if self._current_perception_context:
+          self._current_perception_context = set()
+          self._current_perception_context = "updated history" + str(time.time())
 
     def can_communicate(self, other, threshold=3) -> bool:
-        return (math.abs(self.get_position().x - other.get_position().x) < threshold) and (math.abs(self.get_position().y - other.get_position().y) < threshold)
+        return (abs(self.position.x - other.position.x) < threshold) and (abs(self.position.y - other.position.y) < threshold)
     
     def set_neighbors(self, others) -> None:
-        return
+        for other in others:
+            other.add_to_current_perception_context(self._current_perception_context)
 
-    def add_to_current_perception_context(self, perception_context: List[str]):
-        return
+    def add_to_current_perception_context(self, perception_context: List[tuple]):
+        self._current_perception_context.update(perception_context)
 
     def move_randomly(self):
-        # TODO: account for edge cases and knowledge of previously explored regions.
-        direction = random.choice(['up', 'down', 'left', 'right'])
-        
+        # Get current position
+        x, y = self._position.x, self._position.y
+        max_x, max_y = self._map_dimensions
+
+        # Determine possible directions based on current position
+        possible_directions = []
+        if y < max_y - 1:
+            possible_directions.append('up')
+        if y > 0:
+            possible_directions.append('down')
+        if x > 0:
+            possible_directions.append('left')
+        if x < max_x - 1:
+            possible_directions.append('right')
+
+        # Choose a direction randomly from possible directions
+        direction = random.choice(possible_directions)
+
+        # Move the drone in the chosen direction
         if direction == 'up':
-            self._position.y = (self._position.y + 1) % self._map_dimensions[1]
+            self._position.y += 1
         elif direction == 'down':
-            self._position.y = (self._position.y - 1) % self._map_dimensions[1]
+            self._position.y -= 1
         elif direction == 'left':
-            self._position.x = (self._position.x - 1) % self._map_dimensions[0]
+            self._position.x -= 1
         elif direction == 'right':
-            self._position.x = (self._position.x + 1) % self._map_dimensions[0]
+            self._position.x += 1
 
     def __str__(self):
         return f"Drone(id={self.id}, position={self.position})"
