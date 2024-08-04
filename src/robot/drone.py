@@ -73,14 +73,22 @@ class Drone():
         """Get the position for this drone."""
         return self._position
 
-    def update(self) -> None:
-        """Plans the next moves"""
+    def move(self) -> None:
+        """Move to the next position"""
         return
 
-    def can_communicate(self) -> bool:
-        return True
+    def update(self) -> None:
+        """
+        Plans the next moves
+        If current_perception_context, call LLM, delete current_perception_context
+        Set historical_perception_context
+        """
+        return
+
+    def can_communicate(self, other, threshold=3) -> bool:
+        return (math.abs(self.get_position().x - other.get_position().x) < threshold) and (math.abs(self.get_position().y - other.get_position().y) < threshold)
     
-    def set_neighbors(self) -> None:
+    def set_neighbors(self, others) -> None:
         return
 
     def add_to_current_perception_context(self, perception_context: List[str]):

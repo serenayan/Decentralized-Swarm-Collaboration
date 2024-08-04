@@ -2,21 +2,43 @@ import matplotlib.pyplot as plt
 import numpy as np
 import random
 from robot.drone import Drone
+from scenario import SCENARIO_DICT
 
 class Simulator:
     def __init__(self, map_size, num_drones):
         self.drones = [Drone(id=i, map_size=map_size) for i in range(num_drones)]
+        self.scenario_map = {}
+
+        positions = random.sample([(x, y) for x in range(map_size) for y in range(map_size)], 2)
+        (x1, y1), (x2, y2) = positions
+        self.scenario_map[(x1, y1)] = SCENARIO_DICT["damaged_road_bridge"]
+        self.scenario_map[(x2, y2)] = SCENARIO_DICT["trapped_person"]
+
         for drone in self.drones:
             print(drone.get_position())
 
     def tick(self):
         for drone in self.drones:
-            drone.move_randomly()
+            drone.move()
+            pos = drone.get_position()
+            if pos in self.scenario_map:
+                drone.add_to_current_perception_context([self.scenario_map[pos]])
+            # drone.move_randomly()
+
+        for drone in self.drones:
+            broad_cast_lst = []
+            for other_drone in self.drones:
+                if done != other_drone and drone.can_communicate(other_drone, 3)
+                    broad_cast_lst.append(other_drone)
+            drone.set_neighbors(broad_cast_lst)
+
+        for drone in self.drones:
+            drone.update()
     
     def get_all_positions(self):
         return [drone.get_position() for drone in self.drones]
 
-def update(simulator, scatter, texts):
+def tick_simulator(simulator, scatter, texts):
     simulator.tick()
     all_positions = simulator.get_all_positions()
     x_data = [pos.x for pos in all_positions]
@@ -31,7 +53,7 @@ def update(simulator, scatter, texts):
 
 def on_key_press(event, simulator, scatter, texts):
     if event.key == 'enter':
-        update(simulator, scatter, texts)
+        tick_simulator(simulator, scatter, texts)
 
 def main():
     n = 9  # Map size (9x9 grid)
