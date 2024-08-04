@@ -5,8 +5,8 @@ from robot.drone import Drone
 from scenario import SCENARIO_DICT
 
 class Simulator:
-    def __init__(self, map_size, num_drones):
-        self.drones = [Drone(id=i, map_size=map_size) for i in range(num_drones)]
+    def __init__(self, map_size, region_dimensions, num_drones):
+        self.drones = [Drone(id=i, region_dimensions=region_dimensions, map_size=map_size) for i in range(num_drones)]
         self.scenario_map = {}
 
         positions = random.sample([(x, y) for x in range(map_size) for y in range(map_size)], 2)
